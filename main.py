@@ -121,7 +121,15 @@ def main():
     destination = get_destination()
     command = build_command(media, download_type, quality, playlist, destination)
 
-    subprocess.run(command)
+    result = subprocess.run(command)
+
+    if result.returncode == 0:
+        input("\nDownload Successful! Press Enter to Exit.")
+    else:
+        input(
+            "\nDownload Unsuccessful. See the error above. Press Enter to Exit.")
+
+
 
 
 
