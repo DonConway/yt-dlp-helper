@@ -156,13 +156,11 @@ def main():
 
     result = subprocess.run(command)
 
-
-
     if result.returncode == 0:
-        input("\nDownload Successful! Press Enter to Exit.")
+        input("\nDownload Successful! \nPress Enter to Exit.")
     else:
         input(
-            "\nDownload Unsuccessful. See the error above. Press Enter to Exit.")
+           "\nDownload Unsuccessful. See the error above. \nPress Enter to Exit.")
 
 
 
