@@ -1,14 +1,23 @@
 import subprocess
 import tkinter as tk
 from tkinter import filedialog
+import threading
+import time
 
 
 #Get URL input and check validity first:
 def get_url():
     while True:
         link = input("Media URL: ")
-        result = subprocess.run(["yt-dlp", "--simulate", "--no-playlist", link],
-                                capture_output=True, text=True)
+        stop_event = threading.Event()
+        loader = threading.Thread(target=loading_message, args=(stop_event,)
+        )
+        loader.start()
+        result = subprocess.run(
+            ["yt-dlp", "--simulate", "--no-playlist", link],
+                capture_output=True, text=True)
+        stop_event.set()
+        loader.join()
         if result.returncode == 0:
             return link
         print("Invalid URL")
@@ -111,6 +120,17 @@ def build_command(media, download_type, quality, playlist, destination):
     command.extend(["-P", destination])
     command.append(media)
     return command
+
+#This makes a "Validating..." loading bar for URL Validation
+def loading_message(stop_event):
+    dots = 1
+
+    while not stop_event.is_set():
+        print(f"\rValidating{'.' * dots}  ", end="", flush=True)
+        dots = dots % 3 + 1
+        time.sleep(0.4)
+
+    print("\r" + " " * 30 + "\r", end="", flush=True)
 
 
 def main():
