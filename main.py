@@ -4,20 +4,41 @@ from tkinter import filedialog
 import threading
 import time
 
+#This makes a "Validating..." loading bar for URL Validation
+def loading_message(stop_event):
+    dots = 1
+    while not stop_event.is_set():
+        print(f"\rValidating{'.' * dots}  ", end="", flush=True)
+        dots = dots % 3 + 1
+        time.sleep(0.4)
+    print("\r" + " " * 30 + "\r", end="", flush=True)
+
 
 #Get URL input and check validity first:
 def get_url():
     while True:
         link = input("Media URL: ")
         stop_event = threading.Event()
-        loader = threading.Thread(target=loading_message, args=(stop_event,)
+        loader = threading.Thread(
+            target=loading_message, args=(stop_event,),
+            daemon=True
         )
         loader.start()
-        result = subprocess.run(
-            ["yt-dlp", "--simulate", "--no-playlist", link],
-                capture_output=True, text=True)
-        stop_event.set()
-        loader.join()
+
+        try:
+            result = subprocess.run(
+                ["yt-dlp", "--simulate", "--no-playlist", link],
+                    capture_output=True, text=True)
+        except FileNotFoundError:
+            input("\nError: yt-dlp was not found. "
+                  "Please install yt-dlp and make sure it is in your PATH.\n"
+                  "Press Enter to Exit"
+                  )
+            raise SystemExit
+        finally:
+            stop_event.set()
+            loader.join()
+
         if result.returncode == 0:
             return link
         print("Invalid URL")
@@ -121,17 +142,6 @@ def build_command(media, download_type, quality, playlist, destination):
     command.append(media)
     return command
 
-#This makes a "Validating..." loading bar for URL Validation
-def loading_message(stop_event):
-    dots = 1
-
-    while not stop_event.is_set():
-        print(f"\rValidating{'.' * dots}  ", end="", flush=True)
-        dots = dots % 3 + 1
-        time.sleep(0.4)
-
-    print("\r" + " " * 30 + "\r", end="", flush=True)
-
 
 def main():
     media = get_url()
@@ -141,16 +151,16 @@ def main():
     destination = get_destination()
     command = build_command(media, download_type, quality, playlist, destination)
 
+
     result = subprocess.run(command)
+
+
 
     if result.returncode == 0:
         input("\nDownload Successful! Press Enter to Exit.")
     else:
         input(
             "\nDownload Unsuccessful. See the error above. Press Enter to Exit.")
-
-
-
 
 
 
