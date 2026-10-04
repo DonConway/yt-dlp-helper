@@ -7,6 +7,7 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 YT_DLP = BASE_DIR / "bin" / "yt-dlp.exe"
+FFMPEG_DIR = BASE_DIR / "bin"
 
 #This makes a "Validating..." loading bar for URL Validation
 def loading_message(stop_event):
@@ -122,6 +123,7 @@ def get_destination():
 #Now we build the command for the console to begin the download:
 def build_command(media, download_type, quality, playlist, destination):
     command = [str(YT_DLP)]
+    command.extend(["--ffmpeg-location", str(FFMPEG_DIR)])
     if not playlist:
         command.append("--no-playlist")
     if download_type == 1:
