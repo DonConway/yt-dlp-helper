@@ -30,18 +30,20 @@ def get_url():
                 ["yt-dlp", "--simulate", "--no-playlist", link],
                     capture_output=True, text=True)
         except FileNotFoundError:
+            stop_event.set()
+            loader.join()
             input("\nError: yt-dlp was not found. "
                   "Please install yt-dlp and make sure it is in your PATH.\n"
                   "Press Enter to Exit"
                   )
             raise SystemExit
-        finally:
-            stop_event.set()
-            loader.join()
+
+        stop_event.set()
+        loader.join()
 
         if result.returncode == 0:
             return link
-        print("Invalid URL")
+        print("Invalid URL. Please try again.")
 
 
 # Get desired format (Video or Audio):
