@@ -3,6 +3,10 @@ import tkinter as tk
 from tkinter import filedialog
 import threading
 import time
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+YT_DLP = BASE_DIR / "bin" / "yt-dlp.exe"
 
 #This makes a "Validating..." loading bar for URL Validation
 def loading_message(stop_event):
@@ -27,7 +31,7 @@ def get_url():
 
         try:
             result = subprocess.run(
-                ["yt-dlp", "--simulate", "--no-playlist", link],
+                [str(YT_DLP), "--simulate", "--no-playlist", link],
                     capture_output=True, text=True)
         except FileNotFoundError:
             stop_event.set()
@@ -117,7 +121,7 @@ def get_destination():
 
 #Now we build the command for the console to begin the download:
 def build_command(media, download_type, quality, playlist, destination):
-    command = ["yt-dlp"]
+    command = [str(YT_DLP)]
     if not playlist:
         command.append("--no-playlist")
     if download_type == 1:
