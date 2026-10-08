@@ -5,7 +5,7 @@ A simple Windows application that provides an easy command-line interface for do
 YT-DLP Helper handles the yt-dlp commands for you, allowing you to choose the media format, quality, playlist behavior, and download location without needing to know yt-dlp's command-line syntax.
 
 ## Features
-
+- Graphical interface
 - Download video as MP4
 - Extract audio as MP3
 - Choose video quality:
@@ -20,14 +20,15 @@ YT-DLP Helper handles the yt-dlp commands for you, allowing you to choose the me
   - 128 kbps
 - Download individual media or playlists
 - Validates URLs before continuing
+- Chosen download path becomes new default
 - Animated validation indicator
-- Graphical folder picker for choosing the download destination
 - Bundled yt-dlp and FFmpeg support
 - Standalone Windows application — Python does not need to be installed
 
 ## Installation
 
-Download `YT-DLP-Helper-Setup.exe` from the project's Releases page and run the installer.
+Download `YT-DLP-Helper-Setup1.0.1.exe` (or newer version) from the project's
+Releases page and run the installer.
 
 The installer creates a Start Menu shortcut and optionally a Desktop shortcut.
 
@@ -37,7 +38,7 @@ The installer creates a Start Menu shortcut and optionally a Desktop shortcut.
 2. Paste the URL of the media you want to download.
 3. Choose Video or Audio.
 4. Select the desired quality.
-5. Choose whether to download the entire playlist.
+5. Tick whether to download the entire playlist.
 6. Select a destination folder.
 7. YT-DLP Helper will run the download and display its progress.
 
