@@ -1,0 +1,79 @@
+YT-DLP Helper - Third-Party Software Notices
+=============================================
+
+YT-DLP Helper uses and distributes third-party software.
+
+------------------------------------------------------------
+yt-dlp
+------------------------------------------------------------
+
+Project:
+yt-dlp
+
+Copyright:
+yt-dlp contributors
+
+Project website:
+https://github.com/yt-dlp/yt-dlp
+
+License information:
+yt-dlp source code is released under the Unlicense.
+
+The official PyInstaller-built Windows executable distributed with
+YT-DLP Helper contains additional third-party components under other
+licenses. The combined executable is distributed under GPLv3+.
+
+Full license information and source code are available from the
+official yt-dlp project:
+
+https://github.com/yt-dlp/yt-dlp
+
+Third-party license information:
+https://github.com/yt-dlp/yt-dlp/blob/master/THIRD_PARTY_LICENSES.txt
+
+
+------------------------------------------------------------
+FFmpeg / FFprobe
+------------------------------------------------------------
+
+Project:
+FFmpeg
+
+Copyright:
+Copyright (c) 2000-2026 the FFmpeg developers
+
+FFmpeg website:
+https://ffmpeg.org/
+
+YT-DLP Helper distributes FFmpeg and FFprobe binaries from the
+yt-dlp FFmpeg-Builds project:
+
+https://github.com/yt-dlp/FFmpeg-Builds
+
+Bundled build:
+N-126374-g089a48eb36-20260831
+Windows x86_64 static GPL build
+
+This build was configured with GPL and version 3 components enabled
+and is therefore distributed under the GNU General Public License
+version 3 or later (GPLv3+).
+
+FFmpeg source code:
+https://github.com/FFmpeg/FFmpeg
+
+FFmpeg licensing information:
+https://ffmpeg.org/legal.html
+
+FFmpeg is a trademark of Fabrice Bellard, originator of the FFmpeg
+project.
+
+
+------------------------------------------------------------
+YT-DLP Helper
+------------------------------------------------------------
+
+YT-DLP Helper is an independent project and is not affiliated with,
+endorsed by, or sponsored by the yt-dlp or FFmpeg projects.
+
+The licenses applicable to the bundled third-party software remain
+the licenses of their respective projects.
