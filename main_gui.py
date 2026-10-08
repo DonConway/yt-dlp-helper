@@ -6,6 +6,8 @@ import threading
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
+import json
+import os
 
 BASE_DIR = Path(sys.executable).resolve().parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
 YT_DLP = BASE_DIR / 'bin' / 'yt-dlp.exe'
@@ -22,7 +24,33 @@ VIDEO_FORMATS = {
 AUDIO_BITRATES = {'Best available': '0', '320 kbps': '320K', '192 kbps': '192K', '128 kbps': '128K'}
 PROGRESS_PATTERN = re.compile(r'\[download\]\s+(\d+(?:\.\d+)?)%')
 
+SETTINGS_DIR = Path(os.getenv("APPDATA", str(Path.home()))) / "YT-DLP Helper"
+SETTINGS_FILE = SETTINGS_DIR / "settings.json"
 
+
+def load_download_folder():
+    default = str(Path.home() / "Downloads")
+
+    try:
+        with open(SETTINGS_FILE, "r", encoding="utf-8") as file:
+            settings = json.load(file)
+
+        folder = settings.get("download_folder", default)
+
+        if Path(folder).is_dir():
+            return folder
+
+    except (OSError, ValueError, TypeError):
+        pass
+
+    return default
+
+
+def save_download_folder(folder):
+    SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
+
+    with open(SETTINGS_FILE, "w", encoding="utf-8") as file:
+        json.dump({"download_folder": folder}, file, indent=4)
 
 def build_command(url, media_type, quality, playlist, destination):
     command = [str(YT_DLP), '--ffmpeg-location', str(FFMPEG_DIR), '--newline', '--no-colors']
@@ -69,7 +97,7 @@ class DownloadApp:
         self.media_type = tk.StringVar(value='Video')
         self.quality = tk.StringVar(value='Best available')
         self.playlist = tk.BooleanVar(value=False)
-        self.destination = tk.StringVar(value=str(Path.home() / 'Downloads'))
+        self.destination = tk.StringVar(value=load_download_folder())
         self.status = tk.StringVar(value='Ready')
         self.percent = tk.StringVar(value='0%')
         self.progress = tk.DoubleVar(value=0)
@@ -138,9 +166,14 @@ class DownloadApp:
         self.quality.set('Best available')
 
     def _browse(self):
-        path = filedialog.askdirectory(parent=self.root, title='Choose download folder', initialdir=self.destination.get())
+        path = filedialog.askdirectory(
+            parent=self.root,
+            title='Choose download folder',
+            initialdir=self.destination.get()
+        )
         if path:
             self.destination.set(path)
+            save_download_folder(path)
 
     def _set_working(self, working):
         self.working = working
@@ -169,6 +202,7 @@ class DownloadApp:
         if not (FFMPEG_DIR / 'ffmpeg.exe').is_file():
             messagebox.showerror('Missing FFmpeg', f'Cannot find ffmpeg.exe in:\n{FFMPEG_DIR}', parent=self.root)
             return
+        save_download_folder(str(destination))
         command = build_command(url, self.media_type.get(), self.quality.get(), self.playlist.get(), str(destination))
         self.progress.set(0)
         self.percent.set('0%')
