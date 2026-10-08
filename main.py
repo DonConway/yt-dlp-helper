@@ -4,12 +4,17 @@ from tkinter import filedialog
 import threading
 import time
 from pathlib import Path
+import sys
 
-BASE_DIR = Path(__file__).resolve().parent
+if getattr(sys, "frozen", False):
+    BASE_DIR = Path(sys.executable).resolve().parent
+else:
+    BASE_DIR = Path(__file__).resolve().parent
+
 YT_DLP = BASE_DIR / "bin" / "yt-dlp.exe"
 FFMPEG_DIR = BASE_DIR / "bin"
 
-#This makes a "Validating..." loading bar for URL Validation
+# This makes a "Validating..." loading bar for URL Validation
 def loading_message(stop_event):
     dots = 1
     while not stop_event.is_set():
@@ -19,7 +24,7 @@ def loading_message(stop_event):
     print("\r" + " " * 30 + "\r", end="", flush=True)
 
 
-#Get URL input and check validity first:
+# Get URL input and check validity first:
 def get_url():
     while True:
         link = input("Media URL: ")
@@ -38,7 +43,7 @@ def get_url():
             stop_event.set()
             loader.join()
             input("\nError: yt-dlp was not found. "
-                  "Please install yt-dlp and make sure it is in your PATH.\n"
+                  "Please re-install YT-DLP Helper.\n"
                   "Press Enter to Exit"
                   )
             raise SystemExit
@@ -100,7 +105,7 @@ def get_playlist():
     return playlist == "y"
 
 
-#Now we determine the download's destination:
+# Get the download's destination:
 def get_destination():
     while True:
         root = tk.Tk()
@@ -120,13 +125,14 @@ def get_destination():
         input("No directory selected. Press Enter to try again.")
 
 
-#Now we build the command for the console to begin the download:
+# Build the command for the console to begin the download:
 def build_command(media, download_type, quality, playlist, destination):
     command = [str(YT_DLP)]
     command.extend(["--ffmpeg-location", str(FFMPEG_DIR)])
     if not playlist:
         command.append("--no-playlist")
     if download_type == 1:
+        command.extend(["--remux-video", "mp4"])
         command.append("-f")
         if quality == 1:
             command.append("bv*+ba/b")
