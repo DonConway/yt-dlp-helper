@@ -262,6 +262,7 @@ class DownloadApp:
         current_item = 0
         total_items = 0
         completed_items = 0
+        highest_progress = 0.0
 
         try:
             creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
@@ -294,6 +295,7 @@ class DownloadApp:
                         total_items = int(playlist_match.group(2))
 
                         if new_item != current_item:
+                            highest_progress = 0.0
                             if current_item > 0:
                                 completed_items = max(
                                     completed_items,
@@ -327,9 +329,12 @@ class DownloadApp:
                     progress_match = PROGRESS_PATTERN.search(line)
 
                     if progress_match:
+                        new_progress = float(progress_match.group(1))
+                        highest_progress = max(highest_progress, new_progress)
+
                         self.events.put((
                             'progress',
-                            float(progress_match.group(1))
+                            highest_progress
                         ))
 
                         speed_match = SPEED_PATTERN.search(line)
