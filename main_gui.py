@@ -8,6 +8,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 import json
 import os
+import time
 
 BASE_DIR = Path(sys.executable).resolve().parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
 YT_DLP = BASE_DIR / 'bin' / 'yt-dlp.exe'
@@ -23,6 +24,9 @@ VIDEO_FORMATS = {
 }
 AUDIO_BITRATES = {'Best available': '0', '320 kbps': '320K', '192 kbps': '192K', '128 kbps': '128K'}
 PROGRESS_PATTERN = re.compile(r'\[download\]\s+(\d+(?:\.\d+)?)%')
+PLAYLIST_PATTERN = re.compile(r'\[download\] Downloading item (\d+) of (\d+)')
+SPEED_PATTERN = re.compile(r'\bat\s+([\d.]+\s*[KMG]?i?B/s)')
+ETA_PATTERN = re.compile(r'\bETA\s+(\d+(?::\d+){1,2})')
 
 SETTINGS_DIR = Path(os.getenv("APPDATA", str(Path.home()))) / "YT-DLP Helper"
 SETTINGS_FILE = SETTINGS_DIR / "settings.json"
@@ -53,13 +57,19 @@ def save_download_folder(folder):
         json.dump({"download_folder": folder}, file, indent=4)
 
 def build_command(url, media_type, quality, playlist, destination):
-    command = [str(YT_DLP), '--ffmpeg-location', str(FFMPEG_DIR), '--newline', '--no-colors']
+    command = [
+        str(YT_DLP),
+        '--ffmpeg-location', str(FFMPEG_DIR),
+        '--newline',
+        '--no-colors',
+        '--windows-filenames'
+    ]
 
     # Set output filename based on video resolution or audio quality
     if media_type == 'Video':
         command.extend(['-o', '%(title)s [%(height)sp].%(ext)s'])
     else:
-        command.extend(['-o', '%(title)s [%(abr)skbps].%(ext)s'])
+        command.extend(['-o', '%(title)s.%(ext)s'])
 
     # Download single video unless playlist is selected
     if not playlist:
@@ -86,10 +96,15 @@ def build_command(url, media_type, quality, playlist, destination):
 
 class DownloadApp:
     def __init__(self, root):
+        self.playlist_status = tk.StringVar(value='')
+        self.download_details = tk.StringVar(value='')
+        self.playlist_eta = tk.StringVar(value='')
+        self.playlist_eta_deadline = None
+        self.playlist_eta_active = False
         self.root = root
         self.root.title('YT-DLP Helper')
-        self.root.geometry('580x485')
-        self.root.minsize(510, 430)
+        self.root.geometry('580x580')
+        self.root.minsize(510, 520)
         self.root.configure(bg='#f5f7fb')
         self.events = queue.Queue()
         self.working = False
@@ -151,12 +166,28 @@ class DownloadApp:
         self.browse_button = ttk.Button(dest_row, text='Browse...', command=self._browse)
         self.browse_button.pack(side='left')
 
+        ttk.Label(
+            frame,
+            textvariable=self.playlist_status,
+            style='Sub.TLabel'
+        ).pack(anchor='w', pady=(0, 5))
         self.bar = ttk.Progressbar(frame, variable=self.progress, maximum=100)
         self.bar.pack(fill='x', pady=(0, 7))
         status_row = ttk.Frame(frame)
         status_row.pack(fill='x', pady=(0, 16))
         ttk.Label(status_row, textvariable=self.status, style='Sub.TLabel').pack(side='left')
         ttk.Label(status_row, textvariable=self.percent, style='Sub.TLabel').pack(side='right')
+        ttk.Label(
+            frame,
+            textvariable=self.download_details,
+            style='Sub.TLabel'
+        ).pack(anchor='w', pady=(0, 3))
+
+        ttk.Label(
+            frame,
+            textvariable=self.playlist_eta,
+            style='Sub.TLabel'
+        ).pack(anchor='w', pady=(0, 10))
         self.download_button = ttk.Button(frame, text='Download', style='Accent.TButton', command=self._start)
         self.download_button.pack(fill='x')
         self.url_entry.focus_set()
@@ -204,38 +235,157 @@ class DownloadApp:
             return
         save_download_folder(str(destination))
         command = build_command(url, self.media_type.get(), self.quality.get(), self.playlist.get(), str(destination))
+        self.playlist_status.set('')
+        self.download_details.set('')
+        self.playlist_eta.set('')
+        self.playlist_eta_deadline = None
+        self.playlist_eta_active = False
         self.progress.set(0)
         self.percent.set('0%')
         self.status.set('Connecting...')
         self._set_working(True)
         threading.Thread(target=self._run_download, args=(command,), daemon=True).start()
 
+    @staticmethod
+    def _format_seconds(seconds):
+        seconds = max(0, int(seconds))
+        hours, remainder = divmod(seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+
+        if hours:
+            return f'{hours:02}:{minutes:02}:{seconds:02}'
+
+        return f'{minutes:02}:{seconds:02}'
     def _run_download(self, command):
         recent_lines = []
+        start_time = time.monotonic()
+        current_item = 0
+        total_items = 0
+        completed_items = 0
+
         try:
             creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
-            with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                  text=True, encoding='utf-8', errors='replace', bufsize=1,
-                                  creationflags=creationflags) as process:
+
+            with subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                bufsize=1,
+                creationflags=creationflags
+            ) as process:
+
                 for line in process.stdout:
                     line = line.strip()
+
                     if not line:
                         continue
+
                     recent_lines.append(line)
                     recent_lines = recent_lines[-15:]
-                    match = PROGRESS_PATTERN.search(line)
-                    if match:
-                        self.events.put(('progress', float(match.group(1))))
-                    elif line.startswith('[Merger]') or line.startswith('[VideoRemuxer]') or line.startswith('[ExtractAudio]'):
-                        self.events.put(('status', 'Processing media...'))
+
+                    # Detect playlist position
+                    playlist_match = PLAYLIST_PATTERN.search(line)
+
+                    if playlist_match:
+                        new_item = int(playlist_match.group(1))
+                        total_items = int(playlist_match.group(2))
+
+                        if new_item != current_item:
+                            if current_item > 0:
+                                completed_items = max(
+                                    completed_items,
+                                    current_item
+                                )
+
+                            current_item = new_item
+
+                            self.events.put((
+                                'playlist',
+                                current_item,
+                                total_items
+                            ))
+
+                            self.events.put(('progress', 0))
+                            self.events.put(('details', ''))
+
+                            if completed_items > 0:
+                                elapsed = time.monotonic() - start_time
+                                average = elapsed / completed_items
+                                remaining = average * (
+                                    total_items - completed_items
+                                )
+
+                                self.events.put((
+                                    'playlist_eta',
+                                    self._format_seconds(remaining)
+                                ))
+
+                    # Detect download percentage
+                    progress_match = PROGRESS_PATTERN.search(line)
+
+                    if progress_match:
+                        self.events.put((
+                            'progress',
+                            float(progress_match.group(1))
+                        ))
+
+                        speed_match = SPEED_PATTERN.search(line)
+                        eta_match = ETA_PATTERN.search(line)
+
+                        speed = (
+                            speed_match.group(1)
+                            if speed_match else '--'
+                        )
+
+                        eta = (
+                            eta_match.group(1)
+                            if eta_match else '--'
+                        )
+
+                        self.events.put((
+                            'details',
+                            f'Speed: {speed}  |  File ETA: {eta}'
+                        ))
+
+                    elif (
+                        line.startswith('[Merger]')
+                        or line.startswith('[VideoRemuxer]')
+                        or line.startswith('[ExtractAudio]')
+                    ):
+                        self.events.put((
+                            'status',
+                            'Processing media...'
+                        ))
+
                     elif line.startswith('ERROR:'):
-                        self.events.put(('status', 'Download error'))
-                    elif line.startswith('[youtube]') or line.startswith('[download] Destination'):
-                        self.events.put(('status', 'Downloading...'))
+                        self.events.put((
+                            'status',
+                            'Download error'
+                        ))
+
+                    elif (
+                        line.startswith('[youtube]')
+                        or line.startswith('[download] Destination')
+                    ):
+                        self.events.put((
+                            'status',
+                            'Downloading...'
+                        ))
+
                 code = process.wait()
-            self.events.put(('done', code, '\n'.join(recent_lines)))
+
+            self.events.put((
+                'done',
+                code,
+                '\n'.join(recent_lines)
+            ))
+
         except Exception as exc:
             self.events.put(('done', -1, str(exc)))
+
 
     def _process_events(self):
         try:
@@ -248,8 +398,43 @@ class DownloadApp:
                     self.status.set('Downloading...')
                 elif kind == 'status':
                     self.status.set(event[1])
+                elif kind == 'playlist':
+                    self.playlist_status.set(
+                        f'Downloading item {event[1]} of {event[2]}'
+                    )
+                    self.playlist_eta.set(
+                        'Playlist ETA: Calculating...'
+                    )
+
+                elif kind == 'details':
+                    self.download_details.set(event[1])
+
+                elif kind == 'playlist_eta':
+
+                    parts = [int(part) for part in event[1].split(':')]
+
+                    if len(parts) == 3:
+
+                        hours, minutes, seconds = parts
+
+                        remaining = hours * 3600 + minutes * 60 + seconds
+
+                    else:
+
+                        minutes, seconds = parts
+
+                        remaining = minutes * 60 + seconds
+
+                    self.playlist_eta_deadline = time.monotonic() + remaining
+
+                    self.playlist_eta_active = True
+
                 elif kind == 'done':
                     self._set_working(False)
+                    self.playlist_eta_active = False
+                    self.playlist_eta_deadline = None
+                    self.download_details.set('')
+                    self.playlist_eta.set('')
                     if event[1] == 0:
                         self.progress.set(100)
                         self.percent.set('100%')
@@ -260,6 +445,17 @@ class DownloadApp:
                         messagebox.showerror('Download failed', 'yt-dlp reported an error:\n\n' + event[2][-1600:], parent=self.root)
         except queue.Empty:
             pass
+
+        if self.playlist_eta_active and self.playlist_eta_deadline is not None:
+            remaining = max(
+                0.0,
+                self.playlist_eta_deadline - time.monotonic()
+            )
+
+            self.playlist_eta.set(
+                f'Playlist ETA: ~{self._format_seconds(remaining)}'
+            )
+
         self.root.after(100, self._process_events)
 
 

@@ -6,10 +6,20 @@ All notable changes to YT-DLP Helper are documented here.
 ## [Unreleased]
 
 ## [1.0.1] - Upcoming
+
 ### Added
-- Remember the last selected download folder between application sessions.
+- Remember the last selected download folder between sessions.
 - Automatically restore the saved folder on startup.
 - Fall back to the default Downloads folder if the saved location no longer exists.
+- Display download speed and estimated time remaining.
+- Track playlist position and estimated completion time.
+- Continuously update playlist ETA during downloads.
+
+### Improved
+- Cleaner filenames for MP3 downloads.
+- Include video resolution in video filenames.
+- Improved Windows filename compatibility.
+- Improved download progress display.
 
 ## [1.0.0] - 2026-10-08
 ### Added
