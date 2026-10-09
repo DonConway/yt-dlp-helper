@@ -5,7 +5,7 @@ All notable changes to YT-DLP Helper are documented here.
 
 ## [Unreleased]
 
-## [1.0.1] - Upcoming
+## [1.0.1] - 2026-10-09
 
 ### Added
 - Remember the last selected download folder between sessions.
