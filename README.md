@@ -69,3 +69,7 @@ YT-DLP Helper is a convenience interface for yt-dlp. Users are responsible for e
 This project uses **yt-dlp** for media downloading and **FFmpeg** for media processing and conversion.
 
 YT-DLP Helper is an independent project and is not affiliated with the yt-dlp or FFmpeg projects.
+
+YT-DLP Helper was developed with substantial assistance from OpenAI's ChatGPT, which helped with code generation, debugging, GUI development, and application packaging.
+
+Project direction, feature decisions, testing, and release management were handled by the project maintainer.
