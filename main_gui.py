@@ -13,6 +13,7 @@ import time
 BASE_DIR = Path(sys.executable).resolve().parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
 YT_DLP = BASE_DIR / 'bin' / 'yt-dlp.exe'
 FFMPEG_DIR = BASE_DIR / 'bin'
+DENO = BASE_DIR / 'bin' / 'deno.exe'
 
 VIDEO_QUALITIES = ('Best available', '1080p', '720p', '480p')
 AUDIO_QUALITIES = ('Best available', '320 kbps', '192 kbps', '128 kbps')
@@ -62,7 +63,9 @@ def build_command(url, media_type, quality, playlist, destination):
         '--ffmpeg-location', str(FFMPEG_DIR),
         '--newline',
         '--no-colors',
-        '--windows-filenames'
+        '--windows-filenames',
+        "--js-runtimes",
+        f"deno:{DENO}",
     ]
 
     # Set output filename based on video resolution or audio quality
@@ -232,6 +235,13 @@ class DownloadApp:
             return
         if not (FFMPEG_DIR / 'ffmpeg.exe').is_file():
             messagebox.showerror('Missing FFmpeg', f'Cannot find ffmpeg.exe in:\n{FFMPEG_DIR}', parent=self.root)
+            return
+        if not DENO.is_file():
+            messagebox.showerror(
+                'Missing Deno',
+                f'Cannot find deno.exe at:\n{DENO}',
+                parent=self.root
+            )
             return
         save_download_folder(str(destination))
         command = build_command(url, self.media_type.get(), self.quality.get(), self.playlist.get(), str(destination))
