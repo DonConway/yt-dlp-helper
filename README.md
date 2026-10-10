@@ -20,17 +20,17 @@ YT-DLP Helper handles the yt-dlp commands for you, allowing you to choose the me
   - 128 kbps
 - Download individual media or playlists
 - Chosen download path becomes new default
-- Bundled yt-dlp and FFmpeg support
+- Bundled yt-dlp, FFmpeg, and Deno — no separate installation required
 - Standalone Windows application — Python does not need to be installed
 - Live download progress and percentage
 - Download speed and estimated time remaining
 - Playlist item tracking and estimated completion time
-- Automatically remembers the last download folder
 - Windows-compatible filenames
 
 ## Installation
 
-Download `YT-DLP-Helper-v1.0.1-Setup.exe` (or newer version) from the project's
+[Download the latest release](https://github.com/DonConway/yt-dlp-helper/releases/latest)
+Download `YT-DLP-Helper-v1.0.2-Setup.exe` (or newer version) from the project's
 Releases page and run the installer.
 
 The installer creates a Start Menu shortcut and optionally a Desktop shortcut.
@@ -50,6 +50,7 @@ The installer creates a Start Menu shortcut and optionally a Desktop shortcut.
 - Python
 - yt-dlp
 - FFmpeg
+- Deno (JavaScript runtime for yt-dlp)
 - Tkinter
 - PyInstaller
 - Inno Setup
