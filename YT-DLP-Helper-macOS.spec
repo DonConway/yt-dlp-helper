@@ -3,9 +3,6 @@
 
 from pathlib import Path
 
-import EXE
-import PYZ
-
 # macOS application dependencies
 bin_dir = Path('bin')
 
