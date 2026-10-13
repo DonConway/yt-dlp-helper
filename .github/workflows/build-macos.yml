@@ -61,13 +61,16 @@ jobs:
 
           while pending:
               source = pending.pop()
-              source = source.resolve()
+              resolved = source.resolve()
+          
               if str(source) in copied:
                   continue
-
+          
               copied.add(str(source))
+          
+              # Preserve the original library filename
               target = destination / source.name
-              shutil.copy2(source, target)
+              shutil.copy2(resolved, target)
 
               output = subprocess.check_output(
                   ["otool", "-L", str(source)], text=True
