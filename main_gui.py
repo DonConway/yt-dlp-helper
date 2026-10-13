@@ -10,10 +10,34 @@ import json
 import os
 import time
 
-BASE_DIR = Path(sys.executable).resolve().parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
-YT_DLP = BASE_DIR / 'bin' / 'yt-dlp.exe'
+# Locate bundled application resources
+if getattr(sys, 'frozen', False):
+    BASE_DIR = Path(sys._MEIPASS)
+else:
+    BASE_DIR = Path(__file__).resolve().parent
+
+# Detect operating system
+IS_WINDOWS = sys.platform == 'win32'
+
+# Choose fonts appropriate for each operating system
+if IS_WINDOWS:
+    UI_FONT = 'Segoe UI'
+    UI_FONT_BOLD = 'Segoe UI Semibold'
+elif sys.platform == 'darwin':
+    UI_FONT = 'Helvetica Neue'
+    UI_FONT_BOLD = 'Helvetica Neue'
+else:
+    UI_FONT = 'DejaVu Sans'
+    UI_FONT_BOLD = 'DejaVu Sans'
+
+# Set executable names
+EXT = '.exe' if IS_WINDOWS else ''
+
+YT_DLP = BASE_DIR / 'bin' / f'yt-dlp{EXT}'
 FFMPEG_DIR = BASE_DIR / 'bin'
-DENO = BASE_DIR / 'bin' / 'deno.exe'
+FFMPEG = FFMPEG_DIR / f'ffmpeg{EXT}'
+FFPROBE = FFMPEG_DIR / f'ffprobe{EXT}'
+DENO = BASE_DIR / 'bin' / f'deno{EXT}'
 
 VIDEO_QUALITIES = ('Best available', '1080p', '720p', '480p')
 AUDIO_QUALITIES = ('Best available', '320 kbps', '192 kbps', '128 kbps')
@@ -29,7 +53,14 @@ PLAYLIST_PATTERN = re.compile(r'\[download\] Downloading item (\d+) of (\d+)')
 SPEED_PATTERN = re.compile(r'\bat\s+([\d.]+\s*[KMG]?i?B/s)')
 ETA_PATTERN = re.compile(r'\bETA\s+(\d+(?::\d+){1,2})')
 
-SETTINGS_DIR = Path(os.getenv("APPDATA", str(Path.home()))) / "YT-DLP Helper"
+# Cross-platform application settings directory
+if IS_WINDOWS:
+    SETTINGS_DIR = Path(os.getenv("APPDATA", str(Path.home()))) / "YT-DLP Helper"
+elif sys.platform == "darwin":
+    SETTINGS_DIR = Path.home() / "Library" / "Application Support" / "YT-DLP Helper"
+else:
+    SETTINGS_DIR = Path.home() / ".config" / "YT-DLP Helper"
+
 SETTINGS_FILE = SETTINGS_DIR / "settings.json"
 
 
@@ -127,13 +158,17 @@ class DownloadApp:
         if 'clam' in style.theme_names():
             style.theme_use('clam')
         style.configure('TFrame', background='#f5f7fb')
-        style.configure('TLabel', background='#f5f7fb', foreground='#243047', font=('Segoe UI', 10))
-        style.configure('Title.TLabel', font=('Segoe UI Semibold', 19), foreground='#16243b')
-        style.configure('Sub.TLabel', foreground='#65758d', font=('Segoe UI', 9))
+        style.configure('TLabel', background='#f5f7fb', foreground='#243047',
+                        font=(UI_FONT, 10))
+        style.configure('Title.TLabel', font=(UI_FONT_BOLD, 19, 'bold'),
+                        foreground='#16243b')
+        style.configure('Sub.TLabel', foreground='#65758d', font=(UI_FONT, 9))
         style.configure('TCombobox', padding=6)
         style.configure('TEntry', padding=6)
-        style.configure('Accent.TButton', font=('Segoe UI Semibold', 11), padding=11,
-                        background='#2563eb', foreground='white', borderwidth=0)
+        style.configure('Accent.TButton', font=(UI_FONT_BOLD, 11, 'bold'),
+                        padding=11,
+                        background='#2563eb', foreground='white',
+                        borderwidth=0)
         style.map('Accent.TButton', background=[('active', '#1d4ed8'), ('disabled', '#a9b9d6')])
         style.configure('Horizontal.TProgressbar', background='#2563eb', troughcolor='#e1e7f0', thickness=10)
 
@@ -230,19 +265,23 @@ class DownloadApp:
         if not destination.is_dir():
             messagebox.showwarning('Invalid folder', 'Please choose an existing download folder.', parent=self.root)
             return
-        if not YT_DLP.is_file():
-            messagebox.showerror('Missing yt-dlp', f'Cannot find yt-dlp at:\n{YT_DLP}', parent=self.root)
-            return
-        if not (FFMPEG_DIR / 'ffmpeg.exe').is_file():
-            messagebox.showerror('Missing FFmpeg', f'Cannot find ffmpeg.exe in:\n{FFMPEG_DIR}', parent=self.root)
-            return
-        if not DENO.is_file():
-            messagebox.showerror(
-                'Missing Deno',
-                f'Cannot find deno.exe at:\n{DENO}',
-                parent=self.root
-            )
-            return
+        # Verify that all required dependencies are available
+        dependencies = {
+            'yt-dlp': YT_DLP,
+            'FFmpeg': FFMPEG,
+            'FFprobe': FFPROBE,
+            'Deno': DENO,
+        }
+
+        for name, path in dependencies.items():
+            if not path.is_file():
+                messagebox.showerror(
+                    f'Missing {name}',
+                    f'Cannot find {name} at:\n{path}',
+                    parent=self.root
+                )
+                return
+
         save_download_folder(str(destination))
         command = build_command(url, self.media_type.get(), self.quality.get(), self.playlist.get(), str(destination))
         self.playlist_status.set('')

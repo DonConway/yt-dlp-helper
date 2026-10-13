@@ -1,0 +1,153 @@
+
+name: Build macOS App
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-macos:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller==6.22.3
+
+      - name: Download and prepare dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p bin
+
+          # Native macOS yt-dlp executable
+          curl -fL --retry 3 \
+            https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos \
+            -o bin/yt-dlp
+
+          # Native Apple Silicon Deno executable
+          curl -fL --retry 3 \
+            https://github.com/denoland/deno/releases/latest/download/deno-aarch64-apple-darwin.zip \
+            -o /tmp/deno-macos.zip
+          unzip -q /tmp/deno-macos.zip -d bin
+
+          # FFmpeg and FFprobe
+          brew install ffmpeg
+
+          # Copy FFmpeg binaries and their non-system libraries
+          python - <<'PY'
+          import os
+          import shutil
+          import subprocess
+          from pathlib import Path
+
+          destination = Path("bin")
+          pending = [
+              Path(shutil.which("ffmpeg")),
+              Path(shutil.which("ffprobe")),
+          ]
+          copied = set()
+
+          while pending:
+              source = pending.pop()
+              source = source.resolve()
+              if str(source) in copied:
+                  continue
+
+              copied.add(str(source))
+              target = destination / source.name
+              shutil.copy2(source, target)
+
+              output = subprocess.check_output(
+                  ["otool", "-L", str(source)], text=True
+              )
+
+              for line in output.splitlines()[1:]:
+                  dependency = line.strip().split(" (", 1)[0]
+                  if dependency.startswith((
+                      "/opt/homebrew/",
+                      "/usr/local/",
+                  )):
+                      pending.append(Path(dependency))
+
+          # Make copied dylib references relative to executables
+          for path in destination.iterdir():
+              if path.name in ("yt-dlp", "deno"):
+                  continue
+
+              output = subprocess.check_output(
+                  ["otool", "-L", str(path)], text=True
+              )
+
+              for line in output.splitlines()[1:]:
+                  dependency = line.strip().split(" (", 1)[0]
+                  if dependency.startswith((
+                      "/opt/homebrew/",
+                      "/usr/local/",
+                  )):
+                      subprocess.run([
+                          "install_name_tool", "-change",
+                          dependency,
+                          "@loader_path/" + Path(dependency).name,
+                          str(path)
+                      ], check=True)
+
+          PY
+
+          chmod +x bin/yt-dlp bin/ffmpeg bin/ffprobe bin/deno
+
+      - name: Verify dependencies
+        run: |
+          ./bin/yt-dlp --version
+          ./bin/ffmpeg -version
+          ./bin/ffprobe -version
+          ./bin/deno --version
+          file bin/yt-dlp bin/ffmpeg bin/ffprobe bin/deno
+
+      - name: Build macOS application
+        run: |
+          pyinstaller --noconfirm --clean YT-DLP-Helper-macOS.spec
+
+      - name: Verify bundled executables
+        run: |
+          APP="dist/YT-DLP Helper.app"
+          test -d "$APP"
+
+          RESOURCE_DIR="$APP/Contents/Frameworks/bin"
+          if [ ! -d "$RESOURCE_DIR" ]; then
+            RESOURCE_DIR="$APP/Contents/Resources/bin"
+          fi
+
+          for executable in yt-dlp ffmpeg ffprobe deno; do
+            test -x "$RESOURCE_DIR/$executable"
+          done
+
+      - name: Create DMG
+        run: |
+          mkdir -p dmg-content
+          cp -R "dist/YT-DLP Helper.app" dmg-content/
+          ln -s /Applications dmg-content/Applications
+
+          hdiutil create \
+            -volname "YT-DLP Helper" \
+            -srcfolder dmg-content \
+            -ov \
+            -format UDZO \
+            "YT-DLP-Helper-macOS-AppleSilicon.dmg"
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: YT-DLP-Helper-macOS-AppleSilicon
+          path: YT-DLP-Helper-macOS-AppleSilicon.dmg
