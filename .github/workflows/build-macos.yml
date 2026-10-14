@@ -176,6 +176,107 @@ jobs:
           "$RESOURCE_DIR/ffprobe" -version
           "$RESOURCE_DIR/deno" --version
 
+      - name: Test FFmpeg portability
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APP="dist/YT-DLP Helper.app"
+          BIN="$APP/Contents/Frameworks/bin"
+
+          echo "Checking for external Homebrew dependencies..."
+
+          python - "$BIN" <<'PY'
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          bin_dir = Path(sys.argv[1])
+          files = [
+              bin_dir / "ffmpeg",
+              bin_dir / "ffprobe",
+              *bin_dir.glob("*.dylib"),
+          ]
+
+          # PyInstaller may place shared libraries in
+          # Contents/Frameworks rather than Frameworks/bin.
+          files += list(bin_dir.parent.glob("*.dylib"))
+
+          failures = []
+
+          for path in files:
+              output = subprocess.check_output(
+                  ["otool", "-L", str(path)],
+                  text=True,
+              )
+
+              for line in output.splitlines()[1:]:
+                  dep = line.strip().split(" (", 1)[0]
+
+                  if dep.startswith(("/opt/homebrew/", "/usr/local/")):
+                      failures.append(f"{path.name}: external {dep}")
+
+                  elif dep.startswith("@loader_path/"):
+                      relative = dep.removeprefix("@loader_path/")
+                      expected = path.parent / relative
+                      if not expected.exists():
+                          failures.append(
+                              f"{path.name}: missing {dep}"
+                          )
+
+          if failures:
+              print("\n".join(failures))
+              sys.exit(1)
+
+          print("PASS: No missing @loader_path libraries or "
+                "absolute Homebrew dependencies found.")
+          PY
+
+      - name: Test bundled video and audio conversion
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APP="dist/YT-DLP Helper.app"
+          BIN="$APP/Contents/Frameworks/bin"
+
+          mkdir -p /tmp/ytdlp-test
+
+          echo "Creating a short test video..."
+          "$BIN/ffmpeg" -y \
+            -f lavfi -i "testsrc2=duration=2:size=320x240:rate=24" \
+            -f lavfi -i "sine=frequency=440:duration=2" \
+            -c:v mpeg4 -c:a aac \
+            -shortest /tmp/ytdlp-test/source.mp4
+
+          echo "Converting video to MP4..."
+          "$BIN/ffmpeg" -y \
+            -i /tmp/ytdlp-test/source.mp4 \
+            -c:v libx264 -c:a aac \
+            /tmp/ytdlp-test/converted.mp4
+
+          echo "Extracting MP3 audio..."
+          "$BIN/ffmpeg" -y \
+            -i /tmp/ytdlp-test/source.mp4 \
+            -vn -c:a libmp3lame \
+            /tmp/ytdlp-test/audio.mp3
+
+          echo "Verifying output files..."
+          test -s /tmp/ytdlp-test/converted.mp4
+          test -s /tmp/ytdlp-test/audio.mp3
+
+          "$BIN/ffprobe" -v error \
+            -show_entries format=duration \
+            -of default=noprint_wrappers=1 \
+            /tmp/ytdlp-test/converted.mp4
+
+          "$BIN/ffprobe" -v error \
+            -show_entries format=duration \
+            -of default=noprint_wrappers=1 \
+            /tmp/ytdlp-test/audio.mp3
+
+          echo "PASS: Video conversion and MP3 extraction succeeded."
+
       - name: Create DMG
         run: |
           mkdir -p dmg-content
