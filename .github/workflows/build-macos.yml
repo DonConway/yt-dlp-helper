@@ -140,6 +140,42 @@ jobs:
             test -x "$RESOURCE_DIR/$executable"
           done
 
+      - name: Test bundled macOS dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APP="dist/YT-DLP Helper.app"
+
+          echo "Checking application executable..."
+          ls -l "$APP/Contents/MacOS/"
+
+          echo "Checking bundled dependencies..."
+          find "$APP/Contents" -type f \
+            \( -name "yt-dlp" -o -name "ffmpeg" \
+            -o -name "ffprobe" -o -name "deno" \)
+
+          echo "Checking FFmpeg shared libraries..."
+          find "$APP/Contents" -name "*.dylib" | wc -l
+
+          echo "Checking application metadata..."
+          plutil -p "$APP/Contents/Info.plist"
+
+          echo "Checking code signature (informational)..."
+          codesign --verify --deep --verbose=2 "$APP" || true
+          
+          echo "Testing bundled executables..."
+
+          RESOURCE_DIR="$APP/Contents/Frameworks/bin"
+          if [ ! -d "$RESOURCE_DIR" ]; then
+            RESOURCE_DIR="$APP/Contents/Resources/bin"
+          fi
+
+          "$RESOURCE_DIR/yt-dlp" --version
+          "$RESOURCE_DIR/ffmpeg" -version
+          "$RESOURCE_DIR/ffprobe" -version
+          "$RESOURCE_DIR/deno" --version
+
       - name: Create DMG
         run: |
           mkdir -p dmg-content
